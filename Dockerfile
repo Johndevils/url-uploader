@@ -1,35 +1,37 @@
-# ---------- Stage 1: Build ----------
+# Stage 1: Build the application
 FROM rust:1.77 as builder
 
-# Set working directory inside the container
-WORKDIR /usr/src/url-uploader
+WORKDIR /usr/src/app
 
-# Pre-cache dependencies
+# Copy the manifest and lock files
 COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo 'fn main() {}' > src/main.rs
-RUN cargo build --release
-RUN rm -rf src
 
-# Copy actual source code
+# Create a dummy main.rs to build dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+
+# Build dependencies to cache them
+RUN cargo build --release && rm -rf src
+
+# Copy the actual source code
 COPY . .
 
-# Build release binary
+# Build the application
 RUN cargo build --release
 
-# ---------- Stage 2: Runtime ----------
-FROM debian:bullseye-slim
+# Stage 2: Create the runtime image
+FROM debian:buster-slim
 
-# Install SSL certs (required for HTTPS)
+# Install necessary packages
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set the working directory
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /usr/src/url-uploader/target/release/url-uploader .
+# Copy the compiled binary from the builder stage
+COPY --from=builder /usr/src/app/target/release/url-uploader .
 
-# Expose app port (you can change this if the app uses a different one)
+# Expose the application port
 EXPOSE 8080
 
-# Run the app
+# Define the default command
 CMD ["./url-uploader"]
