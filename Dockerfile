@@ -1,37 +1,30 @@
-# Stage 1: Build the application
+# Stage 1: Builder
 FROM rust:1.77 as builder
 
 WORKDIR /usr/src/app
 
-# Copy the manifest and lock files
+# Cache dependencies
 COPY Cargo.toml Cargo.lock ./
-
-# Create a dummy main.rs to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies to cache them
 RUN cargo build --release && rm -rf src
 
-# Copy the actual source code
+# Copy full source and build
 COPY . .
-
-# Build the application
 RUN cargo build --release
 
-# Stage 2: Create the runtime image
-FROM debian:buster-slim
+# Stage 2: Runtime (use newer Debian base with GLIBC ≥ 2.34)
+FROM debian:bookworm-slim
 
-# Install necessary packages
+# Install CA certs
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the compiled binary from the builder stage
+# Copy the Rust binary from builder stage
 COPY --from=builder /usr/src/app/target/release/url-uploader .
 
-# Expose the application port
+# Expose app port
 EXPOSE 8080
 
-# Define the default command
+# Run the app
 CMD ["./url-uploader"]
